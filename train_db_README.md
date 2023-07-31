@@ -91,13 +91,18 @@ accelerate launch --num_cpu_threads_per_process 8 train_db.py
 ```
 
 It seems to be good to specify the number of CPU cores for num_cpu_threads_per_process.
+
 最好声明一下CPU核心数 num_cpu_threads_per_process。
 
+
 Specify the model to perform additional training in pretrained_model_name_or_path. You can specify a Stable Diffusion checkpoint file (.ckpt or .safetensors), a model directory on the Diffusers local disk, or a Diffusers model ID (such as "stabilityai/stable-diffusion-2"). The saved model after training will be saved in the same format as the original model by default (can be changed with the save_model_as option).
+
 在 pretrained_model_name_or_path 中指定要额外训练的模型。你能够指定一个 Stable Diffusion checkpoint file (.ckpt or .safetensors)，扩散到本地磁盘的一个模型目录中，或者一个扩散模型ID(如“stabilityai/stable-diffusion-2”)。训练后保存的模型默认保存为与原始模型相同的格式(可以使用save_model_as选项进行更改)。
 
 prior_loss_weight is the loss weight of the regularized image. Normally, specify 1.0.
+
 Prior_loss_weight 是正则化图像的损失权值。通常为1.0。
+
 
 resolution will be the size of the image (resolution, width and height). If bucketing (described later) is not used, use this size for training images and regularization images.
 
