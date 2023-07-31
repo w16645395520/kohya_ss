@@ -4,6 +4,28 @@ This repository mostly provides a Windows-focused Gradio GUI for [Kohya's Stable
 
 The GUI allows you to set the training parameters and generate and run the required CLI commands to train the model.
 
+
+openAI对lora参数的设置: (OpenAI)[https://openai.wiki/sd-lora-train.html]
+
+* LoRA 训练 默认的参数存储
+  - train                 [Folder - Image folder 训练数据集路径]
+    ｜- 100_fille_name    [100 为单张图片的训练次数，重质不重量，20-30效果相对较好]
+  - output                [Folder - Output folder 训练的Lora模型存储路径]
+  - logs                  [Folder - Logging folder 训练日志的存储路径，存储训练过程tensorboard的文件]
+
+* 训练步数计算
+  - 图片数量 * 单张图片的训练次数 * Epoch / Train_Batch_Size 
+
+* Batch_Size    同时进行训练的图片数量，batch size越大，显存占用越大，收敛的越慢，需要更多的训练步数；尽量设置为2^n
+
+* network_rank(dim)   特征维度，图片环境越复杂，需要特征维度越高，人物细节/风光/实物在64-128之间即可，动漫风32-64差不多，与模型文件大小有关系
+* network_alpha       缩放因子，该参数将模型的权重缩放，防止下溢。在半精度训练中很有意义，通常设置为network-rank的一半
+  * 通常设置network_rank(dim) 设置在128刚刚好
+
+
+* 查看训练的模型的Loss，选取收敛的模型
+  - [TensorBoard](https://u166897-9777-8d04f6ab.westa.seetacloud.com:8443/TensorBoard/): 不同的服务地址需要改一下链接
+
 ## Table of Contents
 
 - [Kohya's GUI](#kohyas-gui)

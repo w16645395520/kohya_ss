@@ -207,20 +207,20 @@ def train(args):
         persistent_workers=args.persistent_data_loader_workers,
     )
 
-    # 学習ステップ数を計算する
+    # 计算学习步数
     if args.max_train_epochs is not None:
         args.max_train_steps = args.max_train_epochs * math.ceil(
             len(train_dataloader) / accelerator.num_processes / args.gradient_accumulation_steps
         )
         accelerator.print(f"override steps. steps for {args.max_train_epochs} epochs is / 指定エポックまでのステップ数: {args.max_train_steps}")
 
-    # データセット側にも学習ステップを送信
+    # 向数据集发送学习步骤
     train_dataset_group.set_max_train_steps(args.max_train_steps)
 
-    # lr schedulerを用意する
+    # 准备lr scheduler
     lr_scheduler = train_util.get_scheduler_fix(args, optimizer, accelerator.num_processes)
 
-    # 実験的機能：勾配も含めたfp16学習を行う　モデル全体をfp16にする
+    # 实验功能:将fp16学习的整个模型设置为fp16，包括梯度。
     if args.full_fp16:
         assert (
             args.mixed_precision == "fp16"
@@ -229,7 +229,7 @@ def train(args):
         unet.to(weight_dtype)
         text_encoder.to(weight_dtype)
 
-    # acceleratorがなんかよろしくやってくれるらしい
+    # accelerator好像帮了忙
     if args.train_text_encoder:
         unet, text_encoder, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
             unet, text_encoder, optimizer, train_dataloader, lr_scheduler
@@ -255,16 +255,16 @@ def train(args):
 
     # 学習する
     total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
-    accelerator.print("running training / 学習開始")
-    accelerator.print(f"  num examples / サンプル数: {train_dataset_group.num_train_images}")
-    accelerator.print(f"  num batches per epoch / 1epochのバッチ数: {len(train_dataloader)}")
+    accelerator.print("running training / 开始训练")
+    accelerator.print(f"  num examples / 样本数: {train_dataset_group.num_train_images}")
+    accelerator.print(f"  num batches per epoch / 每个epoch的批数: {len(train_dataloader)}")
     accelerator.print(f"  num epochs / epoch数: {num_train_epochs}")
     accelerator.print(f"  batch size per device / バッチサイズ: {args.train_batch_size}")
     accelerator.print(
-        f"  total train batch size (with parallel & distributed & accumulation) / 総バッチサイズ（並列学習、勾配合計含む）: {total_batch_size}"
+        f"  total train batch size (with parallel & distributed & accumulation) / 总批量大小(包括并行学习、梯度求和): {total_batch_size}"
     )
-    accelerator.print(f"  gradient accumulation steps / 勾配を合計するステップ数 = {args.gradient_accumulation_steps}")
-    accelerator.print(f"  total optimization steps / 学習ステップ数: {args.max_train_steps}")
+    accelerator.print(f"  gradient accumulation steps / 合计梯度的步骤数 = {args.gradient_accumulation_steps}")
+    accelerator.print(f"  total optimization steps / 学习步数: {args.max_train_steps}")
 
     progress_bar = tqdm(range(args.max_train_steps), smoothing=0, disable=not accelerator.is_local_main_process, desc="steps")
     global_step = 0

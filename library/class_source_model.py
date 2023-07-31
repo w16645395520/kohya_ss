@@ -55,7 +55,8 @@ class SourceModel:
                 self.pretrained_model_name_or_path = gr.Textbox(
                     label='Pretrained model name or path',
                     placeholder='enter the path to custom model or name of pretrained model',
-                    value='runwayml/stable-diffusion-v1-5',
+                    # value='runwayml/stable-diffusion-v1-5',
+                    value="/root/autodl-tmp/program/kohya_ss/models/realisticVisionV30_v30VAE.safetensors",
                     visible=(False and not headless),
                 )
                 self.pretrained_model_name_or_path_file = gr.Button(

@@ -1164,7 +1164,8 @@ def lora_tab(
                     minimum=0,
                     maximum=1,
                     step=0.01,
-                    info='Max Norm Regularization is a technique to stabilize network training by limiting the norm of network weights. It may be effective in suppressing overfitting of LoRA and improving stability when used with other LoRAs. See PR #545 on kohya_ss/sd_scripts repo for details.',
+                    # info='Max Norm Regularization is a technique to stabilize network training by limiting the norm of network weights. It may be effective in suppressing overfitting of LoRA and improving stability when used with other LoRAs. See PR #545 on kohya_ss/sd_scripts repo for details.',
+                    info="最大范数正则化是一种通过限制网络权值范数来稳定网络训练的技术。当与其他LoRA一起使用时，它可能有效地抑制LoRA的过拟合并提高稳定性。有关详细信息，请参阅kohya_ss/sd_scripts repo上的PR #545。",
                     interactive=True,
                 )
                 network_dropout = gr.Slider(

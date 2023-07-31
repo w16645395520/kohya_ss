@@ -15,6 +15,7 @@ import random
 from typing import List, Tuple, Union
 import torch
 from torch import nn
+from loguru import logger
 
 
 class DyLoRAModule(torch.nn.Module):
@@ -308,7 +309,8 @@ class DyLoRANetwork(torch.nn.Module):
             return loras
 
         self.text_encoder_loras = create_modules(False, text_encoder, DyLoRANetwork.TEXT_ENCODER_TARGET_REPLACE_MODULE)
-        print(f"create LoRA for Text Encoder: {len(self.text_encoder_loras)} modules.")
+        # create LoRA for Text Encoder
+        logger.debug(f"为 Text Encoder 创建 LoRA 模型: {len(self.text_encoder_loras)}")
 
         # extend U-Net target modules if conv2d 3x3 is enabled, or load from weights
         target_modules = DyLoRANetwork.UNET_TARGET_REPLACE_MODULE
@@ -316,7 +318,8 @@ class DyLoRANetwork(torch.nn.Module):
             target_modules += DyLoRANetwork.UNET_TARGET_REPLACE_MODULE_CONV2D_3X3
 
         self.unet_loras = create_modules(True, unet, target_modules)
-        print(f"create LoRA for U-Net: {len(self.unet_loras)} modules.")
+        # create LoRA for U-Net models
+        logger.debug(f"为 U-Net 创建 LoRA 模型: {len(self.unet_loras)}")
 
     def set_multiplier(self, multiplier):
         self.multiplier = multiplier
@@ -336,12 +339,14 @@ class DyLoRANetwork(torch.nn.Module):
 
     def apply_to(self, text_encoder, unet, apply_text_encoder=True, apply_unet=True):
         if apply_text_encoder:
-            print("enable LoRA for text encoder")
+            # enable LoRA for text encoder
+            logger.debug("为文本编码器启用 LoRA")
         else:
             self.text_encoder_loras = []
 
         if apply_unet:
-            print("enable LoRA for U-Net")
+            # enable LoRA for U-Net
+            logger.debug("为 U-Net 启用 LoRA")
         else:
             self.unet_loras = []
 

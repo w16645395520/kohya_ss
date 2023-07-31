@@ -9,6 +9,7 @@ class Folders:
             self.train_data_dir = gr.Textbox(
                 label='Image folder',
                 placeholder='Folder where the training folders containing the images are located',
+                value="/root/autodl-tmp/program/kohya_ss/dataset"
             )
             self.train_data_dir_folder = gr.Button(
                 '📂', elem_id='open_folder_small', visible=(not self.headless)
@@ -34,6 +35,7 @@ class Folders:
             self.output_dir = gr.Textbox(
                 label='Output folder',
                 placeholder='Folder to output trained model',
+                value="/root/autodl-tmp/program/kohya_ss/output"
             )
             self.output_dir_folder = gr.Button(
                 '📂', elem_id='open_folder_small', visible=(not self.headless)
@@ -46,6 +48,7 @@ class Folders:
             self.logging_dir = gr.Textbox(
                 label='Logging folder',
                 placeholder='Optional: enable logging and output TensorBoard log to this folder',
+                value="/root/autodl-tmp/program/kohya_ss/logs"
             )
             self.logging_dir_folder = gr.Button(
                 '📂', elem_id='open_folder_small', visible=(not self.headless)

@@ -10,6 +10,7 @@ import numpy as np
 from tqdm import tqdm
 from transformers import CLIPTextModel
 import torch
+from loguru import logger
 
 
 def make_unet_conversion_map() -> Dict[str, str]:
@@ -335,8 +336,8 @@ class LoRANetwork(torch.nn.Module):
 
         text_encoders = text_encoder if type(text_encoder) == list else [text_encoder]
 
-        # create LoRA for text encoder
-        # 毎回すべてのモジュールを作るのは無駄なので要検討 / it is wasteful to create all modules every time, need to consider
+        # 为 Text Encoder 创建 LoRA
+        # 每次都制作所有模块是徒劳的，需要讨论 / it is wasteful to create all modules every time, need to consider
         self.text_encoder_loras: List[LoRAModule] = []
         skipped_te = []
         for i, text_encoder in enumerate(text_encoders):
@@ -348,25 +349,30 @@ class LoRANetwork(torch.nn.Module):
             text_encoder_loras, skipped = create_modules(False, index, text_encoder, LoRANetwork.TEXT_ENCODER_TARGET_REPLACE_MODULE)
             self.text_encoder_loras.extend(text_encoder_loras)
             skipped_te += skipped
-        print(f"create LoRA for Text Encoder: {len(self.text_encoder_loras)} modules.")
+        # create LoRA for Text Encoder
+        logger.debug(f"为 Text Encoder 创建 LoRA 模型: {len(self.text_encoder_loras)}")
         if len(skipped_te) > 0:
-            print(f"skipped {len(skipped_te)} modules because of missing weight.")
+            # skipped {len(skipped_te)} modules because of missing weight.
+            logger.debug(f"由于缺少权重，跳过了 {len(skipped_te)} 模块。")
 
         # extend U-Net target modules to include Conv2d 3x3
         target_modules = LoRANetwork.UNET_TARGET_REPLACE_MODULE + LoRANetwork.UNET_TARGET_REPLACE_MODULE_CONV2D_3X3
 
         self.unet_loras: List[LoRAModule]
         self.unet_loras, skipped_un = create_modules(True, None, unet, target_modules)
-        print(f"create LoRA for U-Net: {len(self.unet_loras)} modules.")
+        # create LoRA for U-Net models
+        logger.debug(f"为 U-Net 创建 LoRA 模型: {len(self.unet_loras)}")
         if len(skipped_un) > 0:
-            print(f"skipped {len(skipped_un)} modules because of missing weight.")
+            # skipped {len(skipped_un)} modules because of missing weight.
+            logger.debug(f"由于缺少权重，跳过了 {len(skipped_un)} 模块。")
 
         # assertion
         names = set()
         for lora in self.text_encoder_loras + self.unet_loras:
             names.add(lora.lora_name)
         for lora_name in modules_dim.keys():
-            assert lora_name in names, f"{lora_name} is not found in created LoRA modules."
+            # {lora_name} is not found in created LoRA modules.
+            assert lora_name in names, f"在已创建的 LoRA 模块中找不到 {lora_name}。"
 
         # make to work load_state_dict
         for lora in self.text_encoder_loras + self.unet_loras:
@@ -394,9 +400,8 @@ class LoRANetwork(torch.nn.Module):
                     converted_count += 1
                 else:
                     not_converted_count += 1
-        assert (
-            converted_count == 0 or not_converted_count == 0
-        ), f"some modules are not converted: {converted_count} converted, {not_converted_count} not converted"
+        # f"some modules are not converted: {converted_count} converted, {not_converted_count} not converted"
+        assert converted_count == 0 or not_converted_count == 0, f"有些模块不转换: {converted_count} 转换，{not_converted_count} 不转换"
         return converted_count
 
     def set_multiplier(self, multiplier):
@@ -406,11 +411,13 @@ class LoRANetwork(torch.nn.Module):
 
     def apply_to(self, multiplier=1.0, apply_text_encoder=True, apply_unet=True):
         if apply_text_encoder:
-            print("enable LoRA for text encoder")
+            # enable LoRA for text encoder
+            logger.debug("为文本编码器启用 LoRA")
             for lora in self.text_encoder_loras:
                 lora.apply_to(multiplier)
         if apply_unet:
-            print("enable LoRA for U-Net")
+            # enable LoRA for U-Net
+            logger.debug("为 U-Net 启用 LoRA")
             for lora in self.unet_loras:
                 lora.apply_to(multiplier)
 

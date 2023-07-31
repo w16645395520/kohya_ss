@@ -94,7 +94,7 @@ def UI(**kwargs):
         launch_kwargs['inbrowser'] = inbrowser
     if share:
         launch_kwargs['share'] = share
-    interface.launch(**launch_kwargs)
+    interface.launch(**launch_kwargs, root_path="/kohya_ss")
 
 
 if __name__ == '__main__':

@@ -68,12 +68,13 @@ import library.huggingface_util as huggingface_util
 from library.attention_processors import FlashAttnProcessor
 from library.hypernetwork import replace_attentions_for_hypernetwork
 from library.original_unet import UNet2DConditionModel
+from loguru import logger
 
-# Tokenizer: checkpointから読み込むのではなくあらかじめ提供されているものを使う
+# Tokenizer: 使用预先提供的，而不是从checkpoint读取
 TOKENIZER_PATH = "openai/clip-vit-large-patch14"
-V2_STABLE_DIFFUSION_PATH = "stabilityai/stable-diffusion-2"  # ここからtokenizerだけ使う v2とv2.1はtokenizer仕様は同じ
+V2_STABLE_DIFFUSION_PATH = "stabilityai/stable-diffusion-2"  # 从这里只使用tokenizer的v2和v2.1的tokenizer规格相同
 
-# checkpointファイル名
+# checkpoint文件名
 EPOCH_STATE_NAME = "{}-{:06d}-state"
 EPOCH_FILE_NAME = "{}-{:06d}"
 EPOCH_DIFFUSERS_DIR_NAME = "{}-{:06d}"
@@ -146,7 +147,7 @@ class BucketManager:
 
         self.resos = []
         self.reso_to_id = {}
-        self.buckets = []  # 前処理時は (image_key, image, original size, crop left/top)、学習時は image_key
+        self.buckets = []  # 预处理时为 (image_key, image, original size, crop left/top)，学习时为image_key
 
     def add_image(self, reso, image_or_info):
         bucket_id = self.reso_to_id[reso]
@@ -157,7 +158,7 @@ class BucketManager:
             random.shuffle(bucket)
 
     def sort(self):
-        # 解像度順にソートする（表示時、メタデータ格納時の見栄えをよくするためだけ）。bucketsも入れ替えてreso_to_idも振り直す
+        # 按分辨率排序(仅为了在显示和元数据存储时美观)。buckets也换掉，reso_to_id也重新摇一摇
         sorted_resos = self.resos.copy()
         sorted_resos.sort()
 
@@ -177,7 +178,7 @@ class BucketManager:
         self.set_predefined_resos(resos)
 
     def set_predefined_resos(self, resos):
-        # 規定サイズから選ぶ場合の解像度、aspect ratioの情報を格納しておく
+        # 存储从规定尺寸中选择时的分辨率、aspect ratio的信息
         self.predefined_resos = resos.copy()
         self.predefined_resos_set = set(resos)
         self.predefined_aspect_ratios = np.array([w / h for w, h in resos])
@@ -197,18 +198,18 @@ class BucketManager:
     def select_bucket(self, image_width, image_height):
         aspect_ratio = image_width / image_height
         if not self.no_upscale:
-            # 拡大および縮小を行う
-            # 同じaspect ratioがあるかもしれないので（fine tuningで、no_upscale=Trueで前処理した場合）、解像度が同じものを優先する
+            # 进行扩大和缩小
+            # 因为可能存在相同的aspect ratio(在fine tuning中预处理no_upscale=True)，所以优先考虑分辨率相同的aspect ratio。
             reso = (image_width, image_height)
             if reso in self.predefined_resos_set:
                 pass
             else:
                 ar_errors = self.predefined_aspect_ratios - aspect_ratio
-                predefined_bucket_id = np.abs(ar_errors).argmin()  # 当該解像度以外でaspect ratio errorが最も少ないもの
+                predefined_bucket_id = np.abs(ar_errors).argmin()  # 该分辨率以外aspect ratio error最少的分辨率
                 reso = self.predefined_resos[predefined_bucket_id]
 
             ar_reso = reso[0] / reso[1]
-            if aspect_ratio > ar_reso:  # 横が長い→縦を合わせる
+            if aspect_ratio > ar_reso:  # 横长→竖对齐
                 scale = reso[1] / image_height
             else:
                 scale = reso[0] / image_width
@@ -216,15 +217,15 @@ class BucketManager:
             resized_size = (int(image_width * scale + 0.5), int(image_height * scale + 0.5))
             # print("use predef", image_width, image_height, reso, resized_size)
         else:
-            # 縮小のみを行う
+            # 只进行缩小
             if image_width * image_height > self.max_area:
-                # 画像が大きすぎるのでアスペクト比を保ったまま縮小することを前提にbucketを決める
+                # 图像太大，在保持宽高比的前提下决定bucket
                 resized_width = math.sqrt(self.max_area * aspect_ratio)
                 resized_height = self.max_area / resized_width
                 assert abs(resized_width / resized_height - aspect_ratio) < 1e-2, "aspect is illegal"
 
-                # リサイズ後の短辺または長辺をreso_steps単位にする：aspect ratioの差が少ないほうを選ぶ
-                # 元のbucketingと同じロジック
+                # 将大小调整后的短边或长边以reso_steps为单位:选择aspect ratio差少的一方
+                # 和原来的bucketing相同的逻辑
                 b_width_rounded = self.round_to_steps(resized_width)
                 b_height_in_wr = self.round_to_steps(b_width_rounded / aspect_ratio)
                 ar_width_rounded = b_width_rounded / b_height_in_wr
@@ -244,7 +245,7 @@ class BucketManager:
             else:
                 resized_size = (image_width, image_height)  # リサイズは不要
 
-            # 画像のサイズ未満をbucketのサイズとする（paddingせずにcroppingする）
+            # 将小于图像大小作为bucket大小(cropping而非padding)
             bucket_width = resized_size[0] - resized_size[0] % self.reso_steps
             bucket_height = resized_size[1] - resized_size[1] % self.reso_steps
             # print("use arbitrary", image_width, image_height, resized_size, bucket_width, bucket_height)
@@ -331,8 +332,8 @@ class BaseSubset:
         self.caption_dropout_every_n_epochs = caption_dropout_every_n_epochs
         self.caption_tag_dropout_rate = caption_tag_dropout_rate
 
-        self.token_warmup_min = token_warmup_min  # step=0におけるタグの数
-        self.token_warmup_step = token_warmup_step  # N（N<1ならN*max_train_steps）ステップ目でタグの数が最大になる
+        self.token_warmup_min = token_warmup_min  # step=0中的标签数
+        self.token_warmup_step = token_warmup_step  # N (如果 N < 1，则 N * max_train_steps) 在第一步中标签的数量最大
 
         self.img_count = 0
 
@@ -405,7 +406,8 @@ class FineTuningSubset(BaseSubset):
         token_warmup_min,
         token_warmup_step,
     ) -> None:
-        assert metadata_file is not None, "metadata_file must be specified / metadata_fileは指定が必須です"
+        # metadata_file must be specified
+        assert metadata_file is not None, "metadata_file是必须指定的"
 
         super().__init__(
             image_dir,
@@ -450,7 +452,8 @@ class ControlNetSubset(BaseSubset):
         token_warmup_min,
         token_warmup_step,
     ) -> None:
-        assert image_dir is not None, "image_dir must be specified / image_dirは指定が必須です"
+        # image_dir must be specified
+        assert image_dir is not None, "image_dir是必须指定的"
 
         super().__init__(
             image_dir,
@@ -513,7 +516,7 @@ class BaseDataset(torch.utils.data.Dataset):
 
         self.tokenizer_max_length = self.tokenizers[0].model_max_length if max_token_length is None else max_token_length + 2
 
-        self.current_epoch: int = 0  # インスタンスがepochごとに新しく作られるようなので外側から渡さないとダメ
+        self.current_epoch: int = 0  # 每个 epoch 都有一个新的实例，所以你必须从外面传递。
 
         self.current_step: int = 0
         self.max_train_steps: int = 0
@@ -539,7 +542,7 @@ class BaseDataset(torch.utils.data.Dataset):
         self.caching_mode = mode
 
     def set_current_epoch(self, epoch):
-        if not self.current_epoch == epoch:  # epochが切り替わったらバケツをシャッフルする
+        if not self.current_epoch == epoch:  # epoch 切换后对水桶进行洗牌
             self.shuffle_buckets()
         self.current_epoch = epoch
 
@@ -571,7 +574,7 @@ class BaseDataset(torch.utils.data.Dataset):
         self.replacements[str_from] = str_to
 
     def process_caption(self, subset: BaseSubset, caption):
-        # dropoutの決定：tag dropがこのメソッド内にあるのでここで行うのが良い
+        # dropout的决定:在这个方法中有tag drop，所以最好在这里进行。
         is_drop_out = subset.caption_dropout_rate > 0 and random.random() < subset.caption_dropout_rate
         is_drop_out = (
             is_drop_out
@@ -584,7 +587,7 @@ class BaseDataset(torch.utils.data.Dataset):
         else:
             if subset.shuffle_caption or subset.token_warmup_step > 0 or subset.caption_tag_dropout_rate > 0:
                 tokens = [t.strip() for t in caption.strip().split(",")]
-                if subset.token_warmup_step < 1:  # 初回に上書きする
+                if subset.token_warmup_step < 1:  # 盖在第一次上
                     subset.token_warmup_step = math.floor(subset.token_warmup_step * self.max_train_steps)
                 if subset.token_warmup_step and self.current_step < subset.token_warmup_step:
                     tokens_len = (
@@ -615,7 +618,7 @@ class BaseDataset(torch.utils.data.Dataset):
 
                 caption = ", ".join(fixed_tokens + flex_tokens)
 
-            # textual inversion対応
+            # textual inversion对应
             for str_from, str_to in self.replacements.items():
                 if str_from == "":
                     # replace all
@@ -641,8 +644,8 @@ class BaseDataset(torch.utils.data.Dataset):
             iids_list = []
             if tokenizer.pad_token_id == tokenizer.eos_token_id:
                 # v1
-                # 77以上の時は "<BOS> .... <EOS> <EOS> <EOS>" でトータル227とかになっているので、"<BOS>...<EOS>"の三連に変換する
-                # 1111氏のやつは , で区切る、とかしているようだが　とりあえず単純に
+                # 77以上的时候"<BOS> ....由于<EOS> <EOS> <EOS>"总计为227，因此"<BOS>…转换为“EOS>”的三联
+                # 1111那家伙用“……”来区分，好像很夸张，总之就是单纯的
                 for i in range(
                     1, self.tokenizer_max_length - tokenizer.model_max_length + 2, tokenizer.model_max_length - 2
                 ):  # (1, 152, 75)
@@ -655,7 +658,7 @@ class BaseDataset(torch.utils.data.Dataset):
                     iids_list.append(ids_chunk)
             else:
                 # v2 or SDXL
-                # 77以上の時は "<BOS> .... <EOS> <PAD> <PAD>..." でトータル227とかになっているので、"<BOS>...<EOS> <PAD> <PAD> ..."の三連に変換する
+                # 77以上的时候"<BOS> ....<EOS> <PAD> <PAD>…"总计227，因此"<BOS>…<EOS> <PAD> <PAD>…"转换成三连
                 for i in range(1, self.tokenizer_max_length - tokenizer.model_max_length + 2, tokenizer.model_max_length - 2):
                     ids_chunk = (
                         input_ids[0].unsqueeze(0),  # BOS
@@ -664,11 +667,11 @@ class BaseDataset(torch.utils.data.Dataset):
                     )  # PAD or EOS
                     ids_chunk = torch.cat(ids_chunk)
 
-                    # 末尾が <EOS> <PAD> または <PAD> <PAD> の場合は、何もしなくてよい
-                    # 末尾が x <PAD/EOS> の場合は末尾を <EOS> に変える（x <EOS> なら結果的に変化なし）
+                    # 如果末尾是<EOS> <PAD>或<PAD> <PAD>，则什么都不用做
+                    # 当尾部为x <PAD/EOS>时，将尾部改为<EOS>(如果x <EOS>，则结果没有变化)
                     if ids_chunk[-2] != tokenizer.eos_token_id and ids_chunk[-2] != tokenizer.pad_token_id:
                         ids_chunk[-1] = tokenizer.eos_token_id
-                    # 先頭が <BOS> <PAD> ... の場合は <BOS> <EOS> <PAD> ... に変える
+                    # 开头是<BOS> <PAD>的情况下, 改为<BOS> <EOS> <PAD>
                     if ids_chunk[1] == tokenizer.pad_token_id:
                         ids_chunk[1] = tokenizer.eos_token_id
 
@@ -686,19 +689,19 @@ class BaseDataset(torch.utils.data.Dataset):
         bucketingを行わない場合も呼び出し必須（ひとつだけbucketを作る）
         min_size and max_size are ignored when enable_bucket is False
         """
-        print("loading image sizes.")
+        logger.debug("加载图片大小")
         for info in tqdm(self.image_data.values()):
             if info.image_size is None:
                 info.image_size = self.get_image_size(info.absolute_path)
 
         if self.enable_bucket:
-            print("make buckets")
+            logger.debug("制造buckets")
         else:
-            print("prepare dataset")
+            logger.debug("准备数据集")
 
-        # bucketを作成し、画像をbucketに振り分ける
+        # 创建bucket，将图像分配到bucket
         if self.enable_bucket:
-            if self.bucket_manager is None:  # fine tuningの場合でmetadataに定義がある場合は、すでに初期化済み
+            if self.bucket_manager is None:  # fine tuning的情况下，metadata有定义的情况下，已经完成初始化
                 self.bucket_manager = BucketManager(
                     self.bucket_no_upscale,
                     (self.width, self.height),
@@ -709,9 +712,8 @@ class BaseDataset(torch.utils.data.Dataset):
                 if not self.bucket_no_upscale:
                     self.bucket_manager.make_buckets()
                 else:
-                    print(
-                        "min_bucket_reso and max_bucket_reso are ignored if bucket_no_upscale is set, because bucket reso is defined by image size automatically / bucket_no_upscaleが指定された場合は、bucketの解像度は画像サイズから自動計算されるため、min_bucket_resoとmax_bucket_resoは無視されます"
-                    )
+                    # min_bucket_reso and max_bucket_reso are ignored if bucket_no_upscale is set, because bucket reso is defined by image size automatically
+                    logger.debug("如果设置了 bucket_no_upscale, 则忽略 min_bucket_reso 和 max_bucket_reso, 因为 bucket 的分辨率是根据图像大小自动计算的。")
 
             img_ar_errors = []
             for image_info in self.image_data.values():
@@ -726,7 +728,7 @@ class BaseDataset(torch.utils.data.Dataset):
             self.bucket_manager.sort()
         else:
             self.bucket_manager = BucketManager(False, (self.width, self.height), None, None, None)
-            self.bucket_manager.set_predefined_resos([(self.width, self.height)])  # ひとつの固定サイズbucketのみ
+            self.bucket_manager.set_predefined_resos([(self.width, self.height)])  # 只有一个固定尺寸的bucket
             for image_info in self.image_data.values():
                 image_width, image_height = image_info.image_size
                 image_info.bucket_reso, image_info.resized_size, _ = self.bucket_manager.select_bucket(image_width, image_height)
@@ -735,22 +737,23 @@ class BaseDataset(torch.utils.data.Dataset):
             for _ in range(image_info.num_repeats):
                 self.bucket_manager.add_image(image_info.bucket_reso, image_info.image_key)
 
-        # bucket情報を表示、格納する
+        # 显示、存储bucket信息
         if self.enable_bucket:
             self.bucket_info = {"buckets": {}}
-            print("number of images (including repeats) / 各bucketの画像枚数（繰り返し回数を含む）")
+            logger.debug("每个 bucket 的图像张数(包括重复次数)") # number of images (including repeats)
+
             for i, (reso, bucket) in enumerate(zip(self.bucket_manager.resos, self.bucket_manager.buckets)):
                 count = len(bucket)
                 if count > 0:
                     self.bucket_info["buckets"][i] = {"resolution": reso, "count": len(bucket)}
-                    print(f"bucket {i}: resolution {reso}, count: {len(bucket)}")
+                    logger.debug(f"bucket {i}: resolution {reso}, count: {len(bucket)}")
 
             img_ar_errors = np.array(img_ar_errors)
             mean_img_ar_error = np.mean(np.abs(img_ar_errors))
             self.bucket_info["mean_img_ar_error"] = mean_img_ar_error
-            print(f"mean ar error (without repeats): {mean_img_ar_error}")
+            logger.debug(f"平均误差(不重复): {mean_img_ar_error}") # mean ar error (without repeats)
 
-        # データ参照用indexを作る。このindexはdatasetのshuffleに用いられる
+        # 制作数据参考索引。这个index用于dataset的shuffle
         self.buckets_indices: List(BucketBatchIndex) = []
         for bucket_index, bucket in enumerate(self.bucket_manager.buckets):
             batch_count = int(math.ceil(len(bucket) / self.batch_size))
@@ -800,8 +803,8 @@ class BaseDataset(torch.utils.data.Dataset):
         )
 
     def cache_latents(self, vae, vae_batch_size=1, cache_to_disk=False, is_main_process=True):
-        # マルチGPUには対応していないので、そちらはtools/cache_latents.pyを使うこと
-        print("caching latents.")
+        # 因为不支持多GPU，所以需要使用tools/cache_latents.py
+        logger.debug("缓存 latents") # caching latents.
 
         image_infos = list(self.image_data.values())
 
@@ -811,7 +814,7 @@ class BaseDataset(torch.utils.data.Dataset):
         # split by resolution
         batches = []
         batch = []
-        print("checking cache validity...")
+        logger.debug("检查缓存是否有效...") # checking cache validity...
         for info in tqdm(image_infos):
             subset = self.image_to_subset[info.image_key]
 
@@ -848,7 +851,7 @@ class BaseDataset(torch.utils.data.Dataset):
             return
 
         # iterate batches: batch doesn't have image, image will be loaded in cache_batch_latents and discarded
-        print("caching latents...")
+        logger.debug("缓存 latents...") # caching latents...
         for batch in tqdm(batches, smoothing=1, total=len(batches)):
             cache_batch_latents(vae, cache_to_disk, batch, subset.flip_aug, subset.random_crop)
 
@@ -858,14 +861,15 @@ class BaseDataset(torch.utils.data.Dataset):
     def cache_text_encoder_outputs(
         self, tokenizers, text_encoders, device, weight_dtype, cache_to_disk=False, is_main_process=True
     ):
-        assert len(tokenizers) == 2, "only support SDXL"
+        # only support SDXL
+        assert len(tokenizers) == 2, "仅支持 SDXL"
 
-        # latentsのキャッシュと同様に、ディスクへのキャッシュに対応する
-        # またマルチGPUには対応していないので、そちらはtools/cache_latents.pyを使うこと
-        print("caching text encoder outputs.")
+        # 与latents的缓存一样，对应到磁盘的缓存
+        # 另外不支持多GPU，需要使用tools/cache_latents.py
+        logger.debug("缓存输出的文本编码器。") # caching text encoder outputs.
         image_infos = list(self.image_data.values())
 
-        print("checking cache existence...")
+        logger.debug("检查缓存是否存在...") # checking cache existence...
         image_infos_to_cache = []
         for info in tqdm(image_infos):
             # subset = self.image_to_subset[info.image_key]
@@ -906,7 +910,7 @@ class BaseDataset(torch.utils.data.Dataset):
             batches.append(batch)
 
         # iterate batches: call text encoder and cache outputs for memory or disk
-        print("caching text encoder outputs...")
+        logger.debug("缓存输出的文本编码器...") # caching text encoder outputs...
         for batch in tqdm(batches):
             infos, input_ids1, input_ids2 = zip(*batch)
             input_ids1 = torch.stack(input_ids1, dim=0)
@@ -933,19 +937,19 @@ class BaseDataset(torch.utils.data.Dataset):
 
         return img, face_cx, face_cy, face_w, face_h
 
-    # いい感じに切り出す
+    # 以愉快的心情说出来
     def crop_target(self, subset: BaseSubset, image, face_cx, face_cy, face_w, face_h):
         height, width = image.shape[0:2]
         if height == self.height and width == self.width:
             return image
 
-        # 画像サイズはsizeより大きいのでリサイズする
+        # 由于图像尺寸大于size，所以进行尺寸调整
         face_size = max(face_w, face_h)
         size = min(self.height, self.width)  # 短いほう
-        min_scale = max(self.height / height, self.width / width)  # 画像がモデル入力サイズぴったりになる倍率（最小の倍率）
-        min_scale = min(1.0, max(min_scale, size / (face_size * subset.face_crop_aug_range[1])))  # 指定した顔最小サイズ
-        max_scale = min(1.0, max(min_scale, size / (face_size * subset.face_crop_aug_range[0])))  # 指定した顔最大サイズ
-        if min_scale >= max_scale:  # range指定がmin==max
+        min_scale = max(self.height / height, self.width / width)  # 使图像正好符合模型输入大小的倍率(最小倍率)
+        min_scale = min(1.0, max(min_scale, size / (face_size * subset.face_crop_aug_range[1])))  # 指定的面部最小尺寸
+        max_scale = min(1.0, max(min_scale, size / (face_size * subset.face_crop_aug_range[0])))  # 指定的面部最大尺寸
+        if min_scale >= max_scale:  # range指定是min==max
             scale = min_scale
         else:
             scale = random.uniform(min_scale, max_scale)
@@ -958,16 +962,16 @@ class BaseDataset(torch.utils.data.Dataset):
         face_cy = int(face_cy * scale + 0.5)
         height, width = nh, nw
 
-        # 顔を中心として448*640とかへ切り出す
+        # 以脸为中心切448*640
         for axis, (target_size, length, face_p) in enumerate(zip((self.height, self.width), (height, width), (face_cy, face_cx))):
-            p1 = face_p - target_size // 2  # 顔を中心に持ってくるための切り出し位置
+            p1 = face_p - target_size // 2  # 以脸为中心的剪切位置
 
             if subset.random_crop:
-                # 背景も含めるために顔を中心に置く確率を高めつつずらす
-                range = max(length - face_p, face_p)  # 画像の端から顔中心までの距離の長いほう
-                p1 = p1 + (random.randint(0, range) + random.randint(0, range)) - range  # -range ~ +range までのいい感じの乱数
+                # 为了把背景也包括进去，不断提高把脸放在中心的概率。
+                range = max(length - face_p, face_p)  # 从图像的边缘到面部中心的距离较长的部分
+                p1 = p1 + (random.randint(0, range) + random.randint(0, range)) - range  # -range ~ +range 感觉良好的随机数
             else:
-                # range指定があるときのみ、すこしだけランダムに（わりと適当）
+                # 只有在有range指定的时候，才会稍微随机(相对适当)
                 if subset.face_crop_aug_range[0] != subset.face_crop_aug_range[1]:
                     if face_size > size // 10 and face_size >= 40:
                         p1 = p1 + random.randint(-face_size // 20, +face_size // 20)
@@ -1001,7 +1005,7 @@ class BaseDataset(torch.utils.data.Dataset):
         original_sizes_hw = []
         crop_top_lefts = []
         target_sizes_hw = []
-        flippeds = []  # 変数名が微妙
+        flippeds = []  # 变量名很微妙
         text_encoder_outputs1_list = []
         text_encoder_outputs2_list = []
         text_encoder_pool2_list = []
@@ -1013,8 +1017,8 @@ class BaseDataset(torch.utils.data.Dataset):
 
             flipped = subset.flip_aug and random.random() < 0.5  # not flipped or flipped with 50% chance
 
-            # image/latentsを処理する
-            if image_info.latents is not None:  # cache_latents=Trueの場合
+            # image/latents 处理
+            if image_info.latents is not None:  # cache_latents=True的情况
                 original_size = image_info.latents_original_size
                 crop_left_top = image_info.latents_crop_left_top  # calc values later if flipped
                 if not flipped:
@@ -1023,7 +1027,7 @@ class BaseDataset(torch.utils.data.Dataset):
                     latents = image_info.latents_flipped
 
                 image = None
-            elif image_info.latents_npz is not None:  # FineTuningDatasetまたはcache_latents_to_disk=Trueの場合
+            elif image_info.latents_npz is not None:  # FineTuningDataset 或者 cache_latents_to_disk=True 的时候
                 latents, original_size, crop_left_top, flipped_latents = load_latents_from_disk(image_info.latents_npz)
                 if flipped:
                     latents = flipped_latents
@@ -1032,7 +1036,7 @@ class BaseDataset(torch.utils.data.Dataset):
 
                 image = None
             else:
-                # 画像を読み込み、必要ならcropする
+                # 读取图像，必要时进行crop
                 img, face_cx, face_cy, face_w, face_h = self.load_image_with_face_info(subset, image_info.absolute_path)
                 im_h, im_w = img.shape[0:2]
 
@@ -1041,12 +1045,11 @@ class BaseDataset(torch.utils.data.Dataset):
                         subset.random_crop, img, image_info.bucket_reso, image_info.resized_size
                     )
                 else:
-                    if face_cx > 0:  # 顔位置情報あり
+                    if face_cx > 0:  # 有面部位置信息
                         img = self.crop_target(subset, img, face_cx, face_cy, face_w, face_h)
                     elif im_h > self.height or im_w > self.width:
-                        assert (
-                            subset.random_crop
-                        ), f"image too large, but cropping and bucketing are disabled / 画像サイズが大きいのでface_crop_aug_rangeかrandom_crop、またはbucketを有効にしてください: {image_info.absolute_path}"
+                        # image too large, but cropping and bucketing are disabled
+                        assert subset.random_crop, f"图像太大，但裁剪和桶被禁用, 请启用 face_crop_aug_range 或 random_crop 或 bucket: {image_info.absolute_path}"
                         if im_h > self.height:
                             p = random.randint(0, im_h - self.height)
                             img = img[p : p + self.height]
@@ -1055,9 +1058,8 @@ class BaseDataset(torch.utils.data.Dataset):
                             img = img[:, p : p + self.width]
 
                     im_h, im_w = img.shape[0:2]
-                    assert (
-                        im_h == self.height and im_w == self.width
-                    ), f"image size is small / 画像サイズが小さいようです: {image_info.absolute_path}"
+                    # image size is small 
+                    assert im_h == self.height and im_w == self.width, f"图像尺寸小: {image_info.absolute_path}"
 
                     original_size = [im_w, im_h]
                     crop_left_top = [0, 0]
@@ -1337,9 +1339,8 @@ class DreamBoothDataset(BaseDataset):
                 number_of_missing_captions_to_show = 5
                 remaining_missing_captions = number_of_missing_captions - number_of_missing_captions_to_show
 
-                print(
-                    f"No caption file found for {number_of_missing_captions} images. Training will continue without captions for these images. If class token exists, it will be used. / {number_of_missing_captions}枚の画像にキャプションファイルが見つかりませんでした。これらの画像についてはキャプションなしで学習を続行します。class tokenが存在する場合はそれを使います。"
-                )
+                # No caption file found for {number_of_missing_captions} images. Training will continue without captions for these images. If class token exists, it will be used.
+                print(f"没有找到{number_of_missing_captions}图像的标题文件。训练将继续，这些图像没有说明文字。如果标签类存在，则会使用。")
                 for i, missing_caption in enumerate(missing_captions):
                     if i >= number_of_missing_captions_to_show:
                         print(missing_caption + f"... and {remaining_missing_captions} more")
@@ -2630,7 +2631,7 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
         "--vae", type=str, default=None, help="path to checkpoint of vae to replace / VAEを入れ替える場合、VAEのcheckpointファイルまたはディレクトリ"
     )
 
-    parser.add_argument("--max_train_steps", type=int, default=1600, help="training steps / 学習ステップ数")
+    parser.add_argument("--max_train_steps", type=int, default=1600, help="training steps / 学习步数")
     parser.add_argument(
         "--max_train_epochs",
         type=int,

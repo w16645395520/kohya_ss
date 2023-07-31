@@ -21,7 +21,7 @@ def start_tensorboard(logging_dir):
         msgbox(msg='Error: log folder is empty')
         return
 
-    run_cmd = [f'{TENSORBOARD}', '--logdir', f'{logging_dir}', '--host', '0.0.0.0', '--port', '6006']
+    run_cmd = [f'{TENSORBOARD}', '--logdir', f'{logging_dir}', '--host', '0.0.0.0', '--port', '3001']
 
     log.info(run_cmd)
     if tensorboard_proc is not None:
@@ -41,7 +41,7 @@ def start_tensorboard(logging_dir):
     log.info('Opening tensorboard url in browser...')
     import webbrowser
 
-    webbrowser.open('http://localhost:6006')
+    webbrowser.open('http://localhost:3001')
 
 
 def stop_tensorboard():

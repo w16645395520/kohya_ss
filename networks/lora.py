@@ -11,6 +11,7 @@ from transformers import CLIPTextModel
 import numpy as np
 import torch
 import re
+from loguru import logger
 
 
 RE_UPDOWN = re.compile(r"(up|down)_blocks_(\d+)_(resnets|upsamplers|downsamplers|attentions)_(\d+)_")
@@ -501,28 +502,26 @@ def get_block_dims_and_alphas(
     def parse_floats(s):
         return [float(i) for i in s.split(",")]
 
-    # block_dimsとblock_alphasをパースする。必ず値が入る
+    # 解析block_dims和block_alphas。固定值
     if block_dims is not None:
         block_dims = parse_ints(block_dims)
-        assert (
-            len(block_dims) == num_total_blocks
-        ), f"block_dims must have {num_total_blocks} elements / block_dimsは{num_total_blocks}個指定してください"
+        # block_dims must have {num_total_blocks} elements
+        assert len(block_dims) == num_total_blocks, f"请指定{num_total_blocks}个block_dims"
     else:
-        print(f"block_dims is not specified. all dims are set to {network_dim} / block_dimsが指定されていません。すべてのdimは{network_dim}になります")
+        # block_dims is not specified. all dims are set to {network_dim}
+        logger.debug(f"block_dims 未指定。所有的 dim 都设置为 {network_dim}")
         block_dims = [network_dim] * num_total_blocks
 
     if block_alphas is not None:
         block_alphas = parse_floats(block_alphas)
-        assert (
-            len(block_alphas) == num_total_blocks
-        ), f"block_alphas must have {num_total_blocks} elements / block_alphasは{num_total_blocks}個指定してください"
+        # block_alphas must have {num_total_blocks} elements
+        assert len(block_alphas) == num_total_blocks, f"block_alphas 必须有 {num_total_blocks} 个元素"
     else:
-        print(
-            f"block_alphas is not specified. all alphas are set to {network_alpha} / block_alphasが指定されていません。すべてのalphaは{network_alpha}になります"
-        )
+        # block_alphas is not specified. all alphas are set to {network_alpha} 
+        logger.debug(f"未指定 block_alphas。所有 alpha 都设置为: {network_alpha}")
         block_alphas = [network_alpha] * num_total_blocks
 
-    # conv_block_dimsとconv_block_alphasを、指定がある場合のみパースする。指定がなければconv_dimとconv_alphaを使う
+    # conv_block_dims和conv_block_alphas仅在有指定的情况下被剖析。如果没有指定，就使用conv_dim和conv_alpha
     if conv_block_dims is not None:
         conv_block_dims = parse_ints(conv_block_dims)
         assert (
@@ -874,22 +873,22 @@ class LoRANetwork(torch.nn.Module):
 
         text_encoders = text_encoder if type(text_encoder) == list else [text_encoder]
 
-        # create LoRA for text encoder
+        # 为 Text Encoder 创建 LoRA
         # 毎回すべてのモジュールを作るのは無駄なので要検討
         self.text_encoder_loras = []
         skipped_te = []
         for i, text_encoder in enumerate(text_encoders):
             if len(text_encoders) > 1:
                 index = i + 1
-                print(f"create LoRA for Text Encoder {index}:")
+                logger.debug(f"为 Text Encoder 创建 LoRA {index}:")
             else:
                 index = None
-                print(f"create LoRA for Text Encoder:")
+                logger.debug(f"为 Text Encoder 创建 LoRA:")
 
             text_encoder_loras, skipped = create_modules(False, index, text_encoder, LoRANetwork.TEXT_ENCODER_TARGET_REPLACE_MODULE)
             self.text_encoder_loras.extend(text_encoder_loras)
             skipped_te += skipped
-        print(f"create LoRA for Text Encoder: {len(self.text_encoder_loras)} modules.")
+        logger.debug(f"为 Text Encoder 创建 LoRA 模型: {len(self.text_encoder_loras)}")
 
         # extend U-Net target modules if conv2d 3x3 is enabled, or load from weights
         target_modules = LoRANetwork.UNET_TARGET_REPLACE_MODULE
@@ -897,7 +896,8 @@ class LoRANetwork(torch.nn.Module):
             target_modules += LoRANetwork.UNET_TARGET_REPLACE_MODULE_CONV2D_3X3
 
         self.unet_loras, skipped_un = create_modules(True, None, unet, target_modules)
-        print(f"create LoRA for U-Net: {len(self.unet_loras)} modules.")
+        # create LoRA for U-Net models
+        logger.debug(f"为 U-Net 创建 LoRA 模型: {len(self.unet_loras)}")
 
         skipped = skipped_te + skipped_un
         if varbose and len(skipped) > 0:
@@ -935,12 +935,14 @@ class LoRANetwork(torch.nn.Module):
 
     def apply_to(self, text_encoder, unet, apply_text_encoder=True, apply_unet=True):
         if apply_text_encoder:
-            print("enable LoRA for text encoder")
+            # enable LoRA for text encoder
+            logger.debug("为文本编码器启用 LoRA")
         else:
             self.text_encoder_loras = []
 
         if apply_unet:
-            print("enable LoRA for U-Net")
+            # enable LoRA for U-Net
+            logger.debug("为 U-Net 启用 LoRA")
         else:
             self.unet_loras = []
 
@@ -948,7 +950,7 @@ class LoRANetwork(torch.nn.Module):
             lora.apply_to()
             self.add_module(lora.lora_name, lora)
 
-    # マージできるかどうかを返す
+    # 回复能否合并
     def is_mergeable(self):
         return True
 
@@ -962,12 +964,14 @@ class LoRANetwork(torch.nn.Module):
                 apply_unet = True
 
         if apply_text_encoder:
-            print("enable LoRA for text encoder")
+            # enable LoRA for text encoder
+            logger.debug("为文本编码器启用 LoRA")
         else:
             self.text_encoder_loras = []
 
         if apply_unet:
-            print("enable LoRA for U-Net")
+            # enable LoRA for U-Net
+            logger.debug("为 U-Net 启用 LoRA")
         else:
             self.unet_loras = []
 
@@ -980,7 +984,7 @@ class LoRANetwork(torch.nn.Module):
 
         print(f"weights are merged")
 
-    # 層別学習率用に層ごとの学習率に対する倍率を定義する　引数の順番が逆だがとりあえず気にしない
+    # 分层学习率用定义各层学习率的倍率的自变量的顺序相反，姑且不介意
     def set_block_lr_weight(
         self,
         up_lr_weight: List[float] = None,
@@ -1010,7 +1014,7 @@ class LoRANetwork(torch.nn.Module):
 
         return lr_weight
 
-    # 二つのText Encoderに別々の学習率を設定できるようにするといいかも
+    # 如果能给两个Text Encoder设定不同的学习率就好了
     def prepare_optimizer_params(self, text_encoder_lr, unet_lr, default_lr):
         self.requires_grad_(True)
         all_params = []
@@ -1029,7 +1033,7 @@ class LoRANetwork(torch.nn.Module):
 
         if self.unet_loras:
             if self.block_lr:
-                # 学習率のグラフをblockごとにしたいので、blockごとにloraを分類
+                # 想要每个block都有学习率的图表，所以按block分类lora
                 block_idx_to_lora = {}
                 for lora in self.unet_loras:
                     idx = get_block_index(lora.lora_name)
@@ -1037,7 +1041,7 @@ class LoRANetwork(torch.nn.Module):
                         block_idx_to_lora[idx] = []
                     block_idx_to_lora[idx].append(lora)
 
-                # blockごとにパラメータを設定する
+                # 为每个block设定参数
                 for idx, block_loras in block_idx_to_lora.items():
                     param_data = {"params": enumerate_params(block_loras)}
 
@@ -1141,7 +1145,7 @@ class LoRANetwork(torch.nn.Module):
         self.mask_dic = mask_dic
 
     def backup_weights(self):
-        # 重みのバックアップを行う
+        # 进行权重的备份
         loras: List[LoRAInfModule] = self.text_encoder_loras + self.unet_loras
         for lora in loras:
             org_module = lora.org_module_ref[0]
@@ -1151,7 +1155,7 @@ class LoRANetwork(torch.nn.Module):
                 org_module._lora_restored = True
 
     def restore_weights(self):
-        # 重みのリストアを行う
+        # 进行权重列表
         loras: List[LoRAInfModule] = self.text_encoder_loras + self.unet_loras
         for lora in loras:
             org_module = lora.org_module_ref[0]
@@ -1162,7 +1166,7 @@ class LoRANetwork(torch.nn.Module):
                 org_module._lora_restored = True
 
     def pre_calculation(self):
-        # 事前計算を行う
+        # 进行事前计算
         loras: List[LoRAInfModule] = self.text_encoder_loras + self.unet_loras
         for lora in loras:
             org_module = lora.org_module_ref[0]
