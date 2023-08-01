@@ -1282,7 +1282,7 @@ def main(args):
     highres_fix = args.highres_fix_scale is not None
     # assert not highres_fix or args.image_path is None, f"highres_fix doesn't work with img2img / highres_fixはimg2imgと同時に使えません"
 
-    # モデルを読み込む
+    # 读取模型
     if not os.path.isfile(args.ckpt):  # ファイルがないならパターンで探し、一つだけ該当すればそれを使う
         files = glob.glob(args.ckpt)
         if len(files) == 1:

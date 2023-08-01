@@ -29,6 +29,7 @@ from library.custom_train_functions import (
     pyramid_noise_like,
     apply_noise_offset,
 )
+from loguru import logger
 
 
 # TODO 他のスクリプトと共通化する
@@ -67,11 +68,7 @@ def train(args):
         user_config = config_util.load_user_config(args.dataset_config)
         ignored = ["train_data_dir", "conditioning_data_dir"]
         if any(getattr(args, attr) is not None for attr in ignored):
-            print(
-                "ignore following options because config file is found: {0} / 設定ファイルが利用されるため以下のオプションは無視されます: {0}".format(
-                    ", ".join(ignored)
-                )
-            )
+            logger.debug(f"因为找到了配置文件，所以忽略以下选项: {', '.join(ignored)}") # ignore following options because config file is found: 
     else:
         user_config = {
             "datasets": [
@@ -107,7 +104,7 @@ def train(args):
             train_dataset_group.is_latent_cacheable()
         ), "when caching latents, either color_aug or random_crop cannot be used / latentをキャッシュするときはcolor_augとrandom_cropは使えません"
 
-    # acceleratorを準備する
+    # 准备accelerator
     print("prepare accelerator")
     accelerator = train_util.prepare_accelerator(args)
     is_main_process = accelerator.is_main_process
@@ -115,7 +112,7 @@ def train(args):
     # mixed precisionに対応した型を用意しておき適宜castする
     weight_dtype, save_dtype = train_util.prepare_dtype(args)
 
-    # モデルを読み込む
+    # 读取模型
     text_encoder, vae, unet, _ = train_util.load_target_model(
         args, weight_dtype, accelerator, unet_use_linear_projection_in_v2=True
     )

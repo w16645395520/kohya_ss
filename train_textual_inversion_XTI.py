@@ -30,6 +30,7 @@ from library.custom_train_functions import (
 )
 import library.original_unet as original_unet
 from XTI_hijack import unet_forward_XTI, downblock_forward_XTI, upblock_forward_XTI
+from loguru import logger
 
 imagenet_templates_small = [
     "a photo of a {}",
@@ -107,23 +108,22 @@ def train(args):
 
     tokenizer = train_util.load_tokenizer(args)
 
-    # acceleratorを準備する
+    # 准备accelerator
     print("prepare accelerator")
     accelerator = train_util.prepare_accelerator(args)
 
     # mixed precisionに対応した型を用意しておき適宜castする
     weight_dtype, save_dtype = train_util.prepare_dtype(args)
 
-    # モデルを読み込む
+    # 读取模型
     text_encoder, vae, unet, _ = train_util.load_target_model(args, weight_dtype, accelerator)
 
     # Convert the init_word to token_id
     if args.init_word is not None:
         init_token_ids = tokenizer.encode(args.init_word, add_special_tokens=False)
         if len(init_token_ids) > 1 and len(init_token_ids) != args.num_vectors_per_token:
-            print(
-                f"token length for init words is not same to num_vectors_per_token, init words is repeated or truncated / 初期化単語のトークン長がnum_vectors_per_tokenと合わないため、繰り返しまたは切り捨てが発生します: length {len(init_token_ids)}"
-            )
+            # token length for init words is not same to num_vectors_per_token, init words is repeated or truncated
+            logger.debug(f"因为初始化单词的令牌长度与num_vectors_per_token不符，所以会出现重复或舍弃: length = {len(init_token_ids)}")
     else:
         init_token_ids = None
 
@@ -195,11 +195,7 @@ def train(args):
         user_config = config_util.load_user_config(args.dataset_config)
         ignored = ["train_data_dir", "reg_data_dir", "in_json"]
         if any(getattr(args, attr) is not None for attr in ignored):
-            print(
-                "ignore following options because config file is found: {0} / 設定ファイルが利用されるため以下のオプションは無視されます: {0}".format(
-                    ", ".join(ignored)
-                )
-            )
+            logger.debug(f"因为找到了配置文件，所以忽略以下选项: {', '.join(ignored)}") # ignore following options because config file is found: 
     else:
         use_dreambooth_method = args.in_json is None
         if use_dreambooth_method:

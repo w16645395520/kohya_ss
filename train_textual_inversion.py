@@ -168,7 +168,7 @@ class TextualInversionTrainer:
         tokenizer_or_list = self.load_tokenizer(args)  # list of tokenizer or tokenizer
         tokenizers = tokenizer_or_list if isinstance(tokenizer_or_list, list) else [tokenizer_or_list]
 
-        # acceleratorを準備する
+        # 准备accelerator
         print("prepare accelerator")
         accelerator = train_util.prepare_accelerator(args)
 
@@ -176,7 +176,7 @@ class TextualInversionTrainer:
         weight_dtype, save_dtype = train_util.prepare_dtype(args)
         vae_dtype = torch.float32 if args.no_half_vae else weight_dtype
 
-        # モデルを読み込む
+        # 读取模型
         model_version, text_encoder_or_list, vae, unet = self.load_target_model(args, weight_dtype, accelerator)
         text_encoders = [text_encoder_or_list] if not isinstance(text_encoder_or_list, list) else text_encoder_or_list
 
@@ -192,9 +192,9 @@ class TextualInversionTrainer:
             for i, tokenizer in enumerate(tokenizers):
                 init_token_ids = tokenizer.encode(args.init_word, add_special_tokens=False)
                 if len(init_token_ids) > 1 and len(init_token_ids) != args.num_vectors_per_token:
+                    # token length for init words is not same to num_vectors_per_token, init words is repeated or truncated
                     accelerator.print(
-                        f"token length for init words is not same to num_vectors_per_token, init words is repeated or truncated / "
-                        + f"初期化単語のトークン長がnum_vectors_per_tokenと合わないため、繰り返しまたは切り捨てが発生します:  tokenizer {i+1}, length {len(init_token_ids)}"
+                        f"因为初始化单词的令牌长度与num_vectors_per_token不符，所以会出现重复或舍弃: tokenizer = {i+1}, length = {len(init_token_ids)}"
                     )
                 init_token_ids_list.append(init_token_ids)
         else:

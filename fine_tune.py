@@ -27,6 +27,7 @@ from library.custom_train_functions import (
     apply_noise_offset,
     scale_v_prediction_loss_like_noise_prediction,
 )
+from loguru import logger
 
 
 def train(args):
@@ -44,15 +45,11 @@ def train(args):
     if args.dataset_class is None:
         blueprint_generator = BlueprintGenerator(ConfigSanitizer(False, True, False, True))
         if args.dataset_config is not None:
-            print(f"Load dataset config from {args.dataset_config}")
+            logger.debug(f"加载数据集配置来自于: {args.dataset_config}") # Load dataset config from {args.dataset_config}
             user_config = config_util.load_user_config(args.dataset_config)
             ignored = ["train_data_dir", "in_json"]
             if any(getattr(args, attr) is not None for attr in ignored):
-                print(
-                    "ignore following options because config file is found: {0} / 設定ファイルが利用されるため以下のオプションは無視されます: {0}".format(
-                        ", ".join(ignored)
-                    )
-                )
+                logger.debug(f"因为找到了配置文件，所以忽略以下选项: {', '.join(ignored)}") # ignore following options because config file is found: 
         else:
             user_config = {
                 "datasets": [
@@ -81,9 +78,8 @@ def train(args):
         train_util.debug_dataset(train_dataset_group)
         return
     if len(train_dataset_group) == 0:
-        print(
-            "No data found. Please verify the metadata file and train_data_dir option. / 画像がありません。メタデータおよびtrain_data_dirオプションを確認してください。"
-        )
+        # No data found. Please verify the metadata file and train_data_dir option. 
+        logger.debug("没有找到数据。请验证元数据文件和train_data_dir选项。")
         return
 
     if cache_latents:
@@ -91,14 +87,14 @@ def train(args):
             train_dataset_group.is_latent_cacheable()
         ), "when caching latents, either color_aug or random_crop cannot be used / latentをキャッシュするときはcolor_augとrandom_cropは使えません"
 
-    # acceleratorを準備する
+    # 准备accelerator
     print("prepare accelerator")
     accelerator = train_util.prepare_accelerator(args)
 
     # mixed precisionに対応した型を用意しておき適宜castする
     weight_dtype, save_dtype = train_util.prepare_dtype(args)
 
-    # モデルを読み込む
+    # 读取模型
     text_encoder, vae, unet, load_stable_diffusion_format = train_util.load_target_model(args, weight_dtype, accelerator)
 
     # verify load/save model formats

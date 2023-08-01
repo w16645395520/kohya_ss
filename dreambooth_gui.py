@@ -42,6 +42,7 @@ from library.utilities import utilities_tab
 from library.class_sample_images import SampleImages, run_cmd_sample
 
 from library.custom_logging import setup_logging
+from loguru import logger
 
 # Set up logging
 log = setup_logging()
@@ -621,10 +622,10 @@ def train_model(
     )
 
     if print_only_bool:
-        log.warning(
-            'Here is the trainer command as a reference. It will not be executed:\n'
-        )
-        print(run_cmd)
+        # log.warning(
+        #     'Here is the trainer command as a reference. It will not be executed:\n'
+        # )
+        logger.debug(f"下面是训练器命令作为参考。它不会被执行: {run_cmd}")
         
         save_to_file(run_cmd)
     else:

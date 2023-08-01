@@ -200,7 +200,7 @@ class NetworkTrainer:
 
         self.assert_extra_args(args, train_dataset_group)
 
-        # acceleratorを準備する
+        # 准备accelerator
         print("preparing accelerator")
         accelerator = train_util.prepare_accelerator(args)
         is_main_process = accelerator.is_main_process
@@ -209,7 +209,7 @@ class NetworkTrainer:
         weight_dtype, save_dtype = train_util.prepare_dtype(args)
         vae_dtype = torch.float32 if args.no_half_vae else weight_dtype
 
-        # モデルを読み込む
+        # 读取模型
         model_version, text_encoder, vae, unet = self.load_target_model(args, weight_dtype, accelerator)
 
         # text_encoder is List[CLIPTextModel] or CLIPTextModel

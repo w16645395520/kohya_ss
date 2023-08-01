@@ -16,6 +16,7 @@ from library.config_util import (
     ConfigSanitizer,
     BlueprintGenerator,
 )
+from loguru import logger
 
 
 def cache_to_disk(args: argparse.Namespace) -> None:
@@ -52,11 +53,7 @@ def cache_to_disk(args: argparse.Namespace) -> None:
             user_config = config_util.load_user_config(args.dataset_config)
             ignored = ["train_data_dir", "in_json"]
             if any(getattr(args, attr) is not None for attr in ignored):
-                print(
-                    "ignore following options because config file is found: {0} / 設定ファイルが利用されるため以下のオプションは無視されます: {0}".format(
-                        ", ".join(ignored)
-                    )
-                )
+                logger.debug(f"因为找到了配置文件，所以忽略以下选项: {', '.join(ignored)}") # ignore following options because config file is found: 
         else:
             if use_dreambooth_method:
                 print("Using DreamBooth method.")
@@ -94,14 +91,14 @@ def cache_to_disk(args: argparse.Namespace) -> None:
     ds_for_collater = train_dataset_group if args.max_data_loader_n_workers == 0 else None
     collater = train_util.collater_class(current_epoch, current_step, ds_for_collater)
 
-    # acceleratorを準備する
+    # 准备accelerator
     print("prepare accelerator")
     accelerator = train_util.prepare_accelerator(args)
 
     # mixed precisionに対応した型を用意しておき適宜castする
     weight_dtype, _ = train_util.prepare_dtype(args)
 
-    # モデルを読み込む
+    # 读取模型
     print("load model")
     if args.sdxl:
         (_, text_encoder1, text_encoder2, _, _, _, _) = sdxl_train_util.load_target_model(args, accelerator, "sdxl", weight_dtype)

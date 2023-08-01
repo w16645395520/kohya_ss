@@ -28,6 +28,7 @@ from library.custom_train_functions import (
     scale_v_prediction_loss_like_noise_prediction,
 )
 from library.sdxl_original_unet import SdxlUNet2DConditionModel
+from loguru import logger
 
 
 def train(args):
@@ -56,11 +57,7 @@ def train(args):
             user_config = config_util.load_user_config(args.dataset_config)
             ignored = ["train_data_dir", "in_json"]
             if any(getattr(args, attr) is not None for attr in ignored):
-                print(
-                    "ignore following options because config file is found: {0} / 設定ファイルが利用されるため以下のオプションは無視されます: {0}".format(
-                        ", ".join(ignored)
-                    )
-                )
+                logger.debug(f"因为找到了配置文件，所以忽略以下选项: {', '.join(ignored)}") # ignore following options because config file is found: 
         else:
             if use_dreambooth_method:
                 print("Using DreamBooth method.")
@@ -102,9 +99,8 @@ def train(args):
         train_util.debug_dataset(train_dataset_group, True)
         return
     if len(train_dataset_group) == 0:
-        print(
-            "No data found. Please verify the metadata file and train_data_dir option. / 画像がありません。メタデータおよびtrain_data_dirオプションを確認してください。"
-        )
+        # No data found. Please verify the metadata file and train_data_dir option. 
+        logger.debug("没有找到数据。请验证元数据文件和train_data_dir选项。")
         return
 
     if cache_latents:
@@ -117,7 +113,7 @@ def train(args):
             train_dataset_group.is_text_encoder_output_cacheable()
         ), "when caching text encoder output, either caption_dropout_rate, shuffle_caption, token_warmup_step or caption_tag_dropout_rate cannot be used / text encoderの出力をキャッシュするときはcaption_dropout_rate, shuffle_caption, token_warmup_step, caption_tag_dropout_rateは使えません"
 
-    # acceleratorを準備する
+    # 准备accelerator
     print("prepare accelerator")
     accelerator = train_util.prepare_accelerator(args)
 
@@ -125,7 +121,7 @@ def train(args):
     weight_dtype, save_dtype = train_util.prepare_dtype(args)
     vae_dtype = torch.float32 if args.no_half_vae else weight_dtype
 
-    # モデルを読み込む
+    # 读取模型
     (
         load_stable_diffusion_format,
         text_encoder1,

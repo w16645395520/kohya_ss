@@ -12,6 +12,7 @@ from safetensors.torch import load_file, save_file, safe_open
 from tqdm import tqdm
 from library import train_util, model_util
 import numpy as np
+from loguru import logger
 
 MIN_SV = 1e-6
 
@@ -201,7 +202,8 @@ def resize_lora_model(lora_sd, new_rank, save_dtype, device, dynamic_method, dyn
   scale = network_alpha/network_dim
 
   if dynamic_method:
-    print(f"Dynamically determining new alphas and dims based off {dynamic_method}: {dynamic_param}, max rank is {new_rank}")
+    # Dynamically determining new alphas and dims based off {dynamic_method}: {dynamic_param}, max rank is {new_rank}
+    logger.debug(f"基于 {dynamic_method} 动态确定新的 alpha 和 dim: {dynamic_param}，最大 rank 为 {new_rank}")
 
   lora_down_weight = None
   lora_up_weight = None
@@ -311,7 +313,7 @@ def resize(args):
   metadata["sshs_model_hash"] = model_hash
   metadata["sshs_legacy_hash"] = legacy_hash
 
-  print(f"saving model to: {args.save_to}")
+  logger.debug(f"保存模型为: {args.save_to}") # saving model to
   save_to_file(args.save_to, state_dict, state_dict, save_dtype, metadata)
 
 

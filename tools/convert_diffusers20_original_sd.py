@@ -28,7 +28,7 @@ def convert(args):
     #     is_save_ckpt or args.reference_model is not None
     # ), f"reference model is required to save as Diffusers / Diffusers形式での保存には参照モデルが必要です"
 
-    # モデルを読み込む
+    # 读取模型
     msg = "checkpoint" if is_load_ckpt else ("Diffusers" + (" as fp16" if args.fp16 else ""))
     print(f"loading {msg}: {args.model_to_load}")
 

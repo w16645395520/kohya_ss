@@ -28,6 +28,7 @@ from library.custom_train_functions import (
     apply_noise_offset,
     scale_v_prediction_loss_like_noise_prediction,
 )
+from loguru import logger
 
 # perlin_noise,
 
@@ -51,11 +52,7 @@ def train(args):
             user_config = config_util.load_user_config(args.dataset_config)
             ignored = ["train_data_dir", "reg_data_dir"]
             if any(getattr(args, attr) is not None for attr in ignored):
-                print(
-                    "ignore following options because config file is found: {0} / 設定ファイルが利用されるため以下のオプションは無視されます: {0}".format(
-                        ", ".join(ignored)
-                    )
-                )
+                logger.debug(f"因为找到了配置文件，所以忽略以下选项: {', '.join(ignored)}") # ignore following options because config file is found: 
         else:
             user_config = {
                 "datasets": [
@@ -85,7 +82,7 @@ def train(args):
             train_dataset_group.is_latent_cacheable()
         ), "when caching latents, either color_aug or random_crop cannot be used / latentをキャッシュするときはcolor_augとrandom_cropは使えません"
 
-    # acceleratorを準備する
+    # 准备accelerator
     print("prepare accelerator")
 
     if args.gradient_accumulation_steps > 1:
@@ -101,7 +98,7 @@ def train(args):
     # mixed precisionに対応した型を用意しておき適宜castする
     weight_dtype, save_dtype = train_util.prepare_dtype(args)
 
-    # モデルを読み込む
+    # 读取模型
     text_encoder, vae, unet, load_stable_diffusion_format = train_util.load_target_model(args, weight_dtype, accelerator)
 
     # verify load/save model formats
@@ -324,7 +321,7 @@ def train(args):
                 if args.scale_v_pred_loss_like_noise_pred:
                     loss = scale_v_prediction_loss_like_noise_prediction(loss, timesteps, noise_scheduler)
 
-                loss = loss.mean()  # 平均なのでbatch_sizeで割る必要なし
+                loss = loss.mean()  # 因为是平均值，所以不需要除以batch_size
 
                 accelerator.backward(loss)
                 if accelerator.sync_gradients and args.max_grad_norm != 0.0:
