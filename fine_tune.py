@@ -436,7 +436,7 @@ def train(args):
     if args.save_state and is_main_process:
         train_util.save_state_on_train_end(args, accelerator)
 
-    del accelerator  # この後メモリを使うのでこれは消す
+    del accelerator  # 这是删除的，因为我们要使用内存。
 
     if is_main_process:
         src_path = src_stable_diffusion_ckpt if save_stable_diffusion_format else src_diffusers_model_path
@@ -459,6 +459,7 @@ def setup_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--diffusers_xformers", action="store_true", help="use xformers by diffusers / Diffusersでxformersを使用する")
     parser.add_argument("--train_text_encoder", action="store_true", help="train text encoder / text encoderも学習する")
+    parser.add_argument("--no_half_vae", action="store_true", help="no half vae")
 
     return parser
 
